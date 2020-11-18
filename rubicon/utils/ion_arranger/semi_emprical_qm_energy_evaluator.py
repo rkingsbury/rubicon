@@ -8,9 +8,10 @@ import itertools
 import math
 import os
 import shutil
+import tempfile
 
 from custodian import Custodian
-from monty.tempfile import ScratchDir
+# from monty.tempfile import ScratchDir
 from six.moves import zip
 
 from pymatgen.core.structure import Molecule
@@ -285,8 +286,7 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         cur_dir = os.getcwd()
         all_errors = set()
         energy = 0.0
-        with ScratchDir(rootpath=cur_dir, copy_from_current_on_enter=False,
-                        copy_to_current_on_exit=True):
+        with tempfile.TemporaryDirectory() as scratch_dir:
             order_text = ["st", "nd", "th"]
             title = "Salt Alignment {}{} Calculation".format(
                 self.run_number,
@@ -295,7 +295,7 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
             mop = MopTask(mol, self.total_charge, "opt", title, "PM7",
                           {"CYCLES": 2000})
             mop.write_file("mol.mop")
-            job = MopacJob()
+            job = MopacJob(backup=False)
             handler = MopacErrorHandler()
             c = Custodian(handlers=[handler], jobs=[job], max_errors=50)
             custodian_out = c.run()
