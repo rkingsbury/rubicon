@@ -38,7 +38,8 @@ class IonPlacer:
                  taboo_tolerance_particle_ratio=0.5,
                  topology="ring", initial_guess="breadth",
                  bound_setter="chain", always_write_best=False,
-                 max_generations_each_conformer=100):
+                 max_generations_each_conformer=100,
+                 output_file="result.xyz"):
         self.prng = Random()
         self.seed = random_seed if random_seed else int(time())
         self.prng.seed(self.seed)
@@ -57,6 +58,7 @@ class IonPlacer:
         self.ea.observer = self.fitness_observer
         self.molecule = molecule
         self.fragments = fragments
+        self.output_file = output_file
         self.nums_fragments = nums_fragments
         self.mol_coords = self.normalize_molecule(self.molecule)
         for frag in self.fragments:
@@ -378,7 +380,7 @@ class IonPlacer:
                                         social_rate=1.193)
         self.best = max(self.final_pop)
         # max means best, not necessarily smallest
-        self.write_structure(self.best.candidate, filename="result.xyz")
+        self.write_structure(self.best.candidate, filename=self.output_file)
         t2 = time()
         self.playing_time = t2 - t1
         return self.best_pymatgen_mol
@@ -510,7 +512,8 @@ def main():
                        bound_setter=options.bound_setter,
                        always_write_best=options.always_write_best,
                        random_seed=options.random_seed,
-                       max_generations_each_conformer=options.max_generations_each_conformer)
+                       max_generations_each_conformer=options.max_generations_each_conformer,
+                       output_file = options.outputfile)
     energy_evaluator.arranger = placer
     placer.place(max_evaluations=options.iterations,
                  pop_size=options.size,
