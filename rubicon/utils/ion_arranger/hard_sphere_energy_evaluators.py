@@ -11,13 +11,14 @@ import numpy as np
 from six.moves import range
 from six.moves import zip
 
-try:
-    import openbabel as ob
-except ImportError:
-    ob = None
+# try:
+#     import openbabel as ob
+# except ImportError:
+#     ob = None
 
 from pymatgen.analysis.molecule_structure_comparator import CovalentRadius
 from pymatgen.io.babel import BabelMolAdaptor
+from pymatgen import Element
 
 from rubicon.utils.ion_arranger.energy_evaluator import EnergyEvaluator
 
@@ -42,11 +43,12 @@ class AtomicRadiusUtils(object):
         radius = []
         ref_radius = CovalentRadius.radius
         num_atoms = mol.NumAtoms()
-        element_table = ob.OBElementTable()
+        # element_table = ob.OBElementTable()
         for i in range(1, num_atoms + 1):
             a = mol.GetAtom(i)
             atomic_num = a.GetAtomicNum()
-            symbol = element_table.GetSymbol(atomic_num)
+            # symbol = element_table.GetSymbol(atomic_num)
+            symbol = Element.from_Z(atomic_num).symbol
             if symbol in self.metals:
                 scale = self.metal_radius_scale
             else:

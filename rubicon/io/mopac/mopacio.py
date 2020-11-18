@@ -20,7 +20,7 @@ from monty.json import MSONable
 
 from pymatgen import SymmOp
 from pymatgen.core.structure import Molecule
-from pymatgen.util.coord_utils import get_angle
+from pymatgen.util.coord import get_angle
 
 __author__ = "Xiaohui Qu"
 __copyright__ = "Copyright 2014, The Electrolyte Genome Project"

@@ -17,8 +17,8 @@ from pymatgen.core.structure import Molecule
 from pymatgen.core.units import Energy
 from pymatgen.io.babel import BabelMolAdaptor
 from rubicon.io.mopac.mopacio import MopOutput, MopTask
-from rubicon.io.mopac.mopacio import MopacErrorHandler
-from rubicon.io.mopac.mopacio import MopacJob
+from rubicon.custodian.mopac.handlers import MopacErrorHandler
+from rubicon.custodian.mopac.jobs import MopacJob
 from rubicon.utils.ion_arranger.energy_evaluator import EnergyEvaluator
 from rubicon.utils.ion_arranger.hard_sphere_energy_evaluators import \
     HardSphereEnergyEvaluator, AtomicRadiusUtils, \

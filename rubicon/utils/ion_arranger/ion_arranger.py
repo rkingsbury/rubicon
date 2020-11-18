@@ -16,13 +16,14 @@ from six.moves import range
 from six.moves import zip
 
 try:
-    import openbabel as ob
+    from openbabel import openbabel as ob
 except ImportError:
     ob = None
 
 from pymatgen.core.structure import Molecule
+from pymatgen import Element
 from pymatgen.io.babel import BabelMolAdaptor
-from pymatgen.io.qchem import QcOutput
+from pymatgen.io.qchem.outputs import QCOutput
 
 from rubicon.utils.ion_arranger.hard_sphere_energy_evaluators import \
     HardSphereElectrostaticEnergyEvaluator, \
@@ -197,11 +198,12 @@ class IonPlacer:
     def get_mol_species(mol):
         species = []
         num_atoms = mol.NumAtoms()
-        element_table = ob.OBElementTable()
+        # element_table = ob.OBElementTable()
         for i in range(1, num_atoms + 1):
             a = mol.GetAtom(i)
             atomic_num = a.GetAtomicNum()
-            symbol = element_table.GetSymbol(atomic_num)
+            # symbol = element_table.GetSymbol(atomic_num)
+            symbol = Element.from_Z(atomic_num).symbol
             species.append(symbol)
         return species
 
@@ -456,9 +458,9 @@ def main():
                         choices=["hardsphere", "sqm"], help="Energy Evaluator")
     options = parser.parse_args()
     if options.evaluator == 'hardsphere':
-        qcout_molecule = QcOutput(options.molecule)
-        qcout_cation = QcOutput(options.cation)
-        qcout_anion = QcOutput(options.anion)
+        qcout_molecule = QCOutput(options.molecule)
+        qcout_cation = QCOutput(options.cation)
+        qcout_anion = QCOutput(options.anion)
         total_charge_cation = qcout_cation.data[0]["molecules"][-1].charge
         total_charge_anion = qcout_anion.data[0]["molecules"][-1].charge
         total_charge_mol = qcout_molecule.data[0]["molecules"][-1].charge
