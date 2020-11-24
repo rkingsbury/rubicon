@@ -9,6 +9,8 @@ import math
 import os
 import shutil
 import tempfile
+from subprocess import Popen, PIPE
+import re
 
 from custodian import Custodian
 # from monty.tempfile import ScratchDir
@@ -27,7 +29,7 @@ from rubicon.utils.ion_arranger.hard_sphere_energy_evaluators import \
     OrderredLayoutEnergyEvaluator, UmbrellarForceEnergyEvaluator, \
     ContactGapRMSDEnergyEvaluator
 
-__author__ = 'xiaohuiqu'
+__author__ = 'xiaohuiqu, Ryan Kingsbury'
 
 
 class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
@@ -36,6 +38,14 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
                  upper_covalent_radius_scale=3.0, upper_metal_radius_scale=1.5,
                  taboo_tolerance_ang=1.0, force_order_fragment=False,
                  bound_setter="chain"):
+        """
+        Args:
+            ob_mol:
+            ob_fragments:
+            nums_fragments:
+            total_charge:
+
+        """
         from rubicon.utils.ion_arranger.ion_arranger import IonPlacer
         self.mol_coords = IonPlacer.normalize_molecule(ob_mol)
         super(SemiEmpricalQuatumMechanicalEnergyEvaluator, self).__init__(
@@ -108,7 +118,8 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         if not raw_position_only:
             if self.current_optimized_position is None:
                 mol = self._get_super_molecule(self.current_raw_position)
-                energy, final_mol = self.run_mopac(mol)
+                #energy, final_mol = self.run_mopac(mol)
+                energy, final_mol = self.run_xtb(mol)
                 from rubicon.utils.ion_arranger.ion_arranger import IonPlacer
                 final_coords = IonPlacer.normalize_molecule(final_mol)
                 self.current_optimized_position = final_coords
@@ -249,7 +260,8 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         else:
             mol = self._get_super_molecule(fragments_coords)
             try:
-                energy, final_mol = self.run_mopac(mol)
+                # energy, final_mol = self.run_mopac(mol)
+                energy, final_mol = self.run_xtb(mol)
             except:
                 return tabooed_energy
             from rubicon.utils.ion_arranger.ion_arranger import IonPlacer
@@ -281,6 +293,43 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         # coarse grained energy,
         # make potential energy surface simpler
         return energy
+
+    def run_xtb(self, mol):
+        cur_dir = os.getcwd()
+        energy = 0.0
+        xtb_bin = "xtb"
+        if not shutil.which(xtb_bin):
+            raise RuntimeError(
+                "Ion Arranger requires the executable 'xtb' to be in "
+                "the path. Please install xtb using "
+                "'conda install -c conda-forge xtb' ")
+
+        with tempfile.TemporaryDirectory() as scratch_dir:
+            self.run_number += 1
+            # write the molecule structure
+            fname = os.path.join(scratch_dir, "xtb_in.xyz")
+            mol.to(filename=fname)
+
+            args = [xtb_bin, fname, "--charge {}".format(self.total_charge), "--opt extreme"]
+
+            with Popen(args, stdout=PIPE, stderr=PIPE, cwd=scratch_dir) as p:
+                for line in p.stdout.readlines():
+                    if isinstance(line, bytes):
+                        line = line.decode()
+
+                    # the real code does filtering here
+                    match = re.search("TOTAL ENERGY *(\\D\\d*\\.\\d*)", line)
+                    if match:
+                        energy = float(match.group(1))
+
+            final_pmg_mol = Molecule.from_file(os.path.join("xtbopt.xyz"))
+            final_ob_mol = BabelMolAdaptor(final_pmg_mol)._obmol
+
+            if energy < self.global_best_energy:
+                self.global_best_energy = energy
+                shutil.copy(os.path.join(scratch_dir, "xtbopt.xyz"), os.path.join(cur_dir, "best_mol.xyz"))
+
+        return energy, final_ob_mol
 
     def run_mopac(self, mol):
         cur_dir = os.getcwd()
