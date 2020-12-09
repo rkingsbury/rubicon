@@ -320,7 +320,8 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
                     # the real code does filtering here
                     match = re.search("TOTAL ENERGY *(\\D\\d*\\.\\d*)", line)
                     if match:
-                        energy = float(match.group(1))
+                        # xtb output is given in Hartree (Eh). Convert to eV
+                        energy = float(match.group(1)) * 27.211386
 
             final_pmg_mol = Molecule.from_file(os.path.join("xtbopt.xyz"))
             final_ob_mol = BabelMolAdaptor(final_pmg_mol)._obmol
