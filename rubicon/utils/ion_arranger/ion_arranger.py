@@ -93,9 +93,9 @@ class IonPlacer:
         short_current_fitness = [round(x, 2) for x in current_fitness]
         print("BEST FITNESS", min(short_current_fitness))
         print("CURRENT FITNESS", short_current_fitness)
-        archieved_fitness = [p.fitness for p in self.ea.archive]
-        short_archieved_fitness = [round(x, 2) for x in archieved_fitness]
-        print("ARCHIEVED FITNESS", short_archieved_fitness)
+        archived_fitness = [p.fitness for p in self.ea.archive]
+        short_archived_fitness = [round(x, 2) for x in archived_fitness]
+        print("ARCHIVED FITNESS", short_archived_fitness)
 
     @classmethod
     def get_max_radius(cls, mol_coords, fragments, nums_fragments):
