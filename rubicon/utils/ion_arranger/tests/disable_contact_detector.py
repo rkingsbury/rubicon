@@ -26,7 +26,7 @@ class TestContactDetector(TestCase):
         pymagen_sodium = Molecule(species=['Na'],
                                   coords=[[999.0, 999.0, 999.0]],
                                   charge=1)
-        # noinspection PyProtectedMember
+
         sodium_obmol = BabelMolAdaptor(pymagen_sodium)._obmol
         acetoxyq_anion_qcout = QcOutput(
             os.path.join(test_dir, "acetoxyq_anion.out"))
@@ -34,7 +34,7 @@ class TestContactDetector(TestCase):
         acetoxyq_obmol = BabelMolAdaptor(pymatgen_acetoxyq)._obmol
         tfsi_qcout = QcOutput(os.path.join(test_dir, "tfsi.qcout"))
         pymatgen_tfsi = tfsi_qcout.data[0]["molecules"][-1]
-        # noinspection PyProtectedMember
+
         tfsi_obmol = BabelMolAdaptor(pymatgen_tfsi)._obmol
         fragments = [sodium_obmol, tfsi_obmol]
         nums_fragments = [1, 1]

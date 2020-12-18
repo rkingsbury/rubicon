@@ -35,7 +35,7 @@ class BuildError(Exception):
 
 class Collections:
     """Interface to normalized names for collections.
-    
+
     After initialization with a MongoDB database and optional parameters,
     you can access collections in `known_collections` as attributes.
     """
@@ -270,5 +270,5 @@ class ProcRunner:
 
     @classmethod
     def run(cls):
-        # noinspection PyProtectedMember
+
         cls.instance._run()

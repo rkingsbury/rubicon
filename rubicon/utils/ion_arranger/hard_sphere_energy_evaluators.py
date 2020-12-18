@@ -508,11 +508,11 @@ class HardSphereElectrostaticEnergyEvaluator(EnergyEvaluator):
         pymatgen_mol_molecule = mol_qcout.data[0]["molecules"][-1]
         pymatgen_mol_cation = cation_qcout.data[0]["molecules"][-1]
         pymatgen_mol_anion = anion_qcout.data[0]["molecules"][-1]
-        # noinspection PyProtectedMember
+
         obmol_mol = BabelMolAdaptor(pymatgen_mol_molecule)._obmol
-        # noinspection PyProtectedMember
+
         obmol_cation = BabelMolAdaptor(pymatgen_mol_cation)._obmol
-        # noinspection PyProtectedMember
+
         obmol_anion = BabelMolAdaptor(pymatgen_mol_anion)._obmol
         mol_coords = IonPlacer.normalize_molecule(obmol_mol)
         rad_util = AtomicRadiusUtils(covalent_radius_scale, metal_radius_scale)
