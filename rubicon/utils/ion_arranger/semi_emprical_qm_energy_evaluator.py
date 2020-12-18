@@ -37,13 +37,15 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
                  lower_covalent_radius_scale=2.0, lower_metal_radius_scale=0.8,
                  upper_covalent_radius_scale=3.0, upper_metal_radius_scale=1.5,
                  taboo_tolerance_ang=1.0, force_order_fragment=False,
-                 bound_setter="chain"):
+                 bound_setter="chain", solvent=None):
         """
         Args:
             ob_mol:
             ob_fragments:
             nums_fragments:
             total_charge:
+            solvent: Any implicit solvent supported by the xtb ALPB model. See
+                https://xtb-docs.readthedocs.io/en/latest/gbsa.html
 
         """
         from rubicon.utils.ion_arranger.ion_arranger import IonPlacer
@@ -100,6 +102,7 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         self.gap_umbrella = None
         self.smallest_gap = 9999999999.9
         self.arranger = None
+        self.solvent = solvent
 
     def save_current_best_position(self):
         conformer_dir = "conformers"
@@ -309,8 +312,12 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
             # write the molecule structure
             fname = os.path.join(scratch_dir, "xtb_in.xyz")
             mol.to(filename=fname)
+            # find number of unpaired electrons
+            n_unpaired = mol.spin_multiplicity - 1
 
-            args = [xtb_bin, fname, "--charge {}".format(self.total_charge), "--opt extreme"]
+            args = [xtb_bin, fname, f"--charge {self.total_charge}", f"--uhf {n_unpaired}"]
+            if self.solvent is not None:
+                args.append(f"--alpb {self.solvent}")
 
             with Popen(args, stdout=PIPE, stderr=PIPE, cwd=scratch_dir) as p:
                 for line in p.stdout.readlines():
@@ -320,15 +327,14 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
                     # the real code does filtering here
                     match = re.search("TOTAL ENERGY *(\\D\\d*\\.\\d*)", line)
                     if match:
-                        # xtb output is given in Hartree (Eh). Convert to eV
-                        energy = float(match.group(1)) * 27.211386
-
-            final_pmg_mol = Molecule.from_file(os.path.join("xtbopt.xyz"))
+                        # xtb output is given in Hartree (Eh).
+                        energy = float(match.group(1))
+            final_pmg_mol = Molecule.from_file("xtbopt.xyz")
             final_ob_mol = BabelMolAdaptor(final_pmg_mol)._obmol
 
             if energy < self.global_best_energy:
                 self.global_best_energy = energy
-                shutil.copy(os.path.join(scratch_dir, "xtbopt.xyz"), os.path.join(cur_dir, "best_mol.xyz"))
+                shutil.copy("xtbopt.xyz", os.path.join(cur_dir, "best_mol.xyz"))
 
         return energy, final_ob_mol
 
