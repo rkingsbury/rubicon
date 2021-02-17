@@ -56,7 +56,6 @@ def _run_one(obj):
     name = str(obj)
     _log.info("run.start builder={}".format(name))
     t0 = time.time()
-    # noinspection PyBroadException
     try:
         status = obj.run()
     except:

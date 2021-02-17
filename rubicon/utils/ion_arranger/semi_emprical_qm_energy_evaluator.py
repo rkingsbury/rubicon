@@ -122,7 +122,9 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
             if self.current_optimized_position is None:
                 mol = self._get_super_molecule(self.current_raw_position)
                 #energy, final_mol = self.run_mopac(mol)
-                energy, final_mol = self.run_xtb(mol)
+                #energy, final_mol = self.run_xtb(mol)
+                #energy = self.run_xtb(mol)
+                final_mol = BabelMolAdaptor(mol)._obmol
                 from rubicon.utils.ion_arranger.ion_arranger import IonPlacer
                 final_coords = IonPlacer.normalize_molecule(final_mol)
                 self.current_optimized_position = final_coords
@@ -140,6 +142,9 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
             del self.sqm_umbrella_centers[:]
 
     def is_current_position_tabooed(self, position_type):
+        """
+        Checks whether current position is in the list of tabooed positions
+        """
         if position_type not in ["raw", "optimized"]:
             raise ValueError("Position type must be either raw or optimized")
         current_pos = self.current_raw_position if position_type == "raw" \
@@ -158,6 +163,10 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         return False
 
     def query_memory_positions(self, fragments_coords):
+        """
+        Checks whether this position is within a certain tolerance of a saved
+        position. If it is, return the energy of that position
+        """
         current_pos = list(itertools.chain(*fragments_coords))
         for p, energy in self.memory_positions:
             distance = max(
@@ -228,68 +237,92 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         self.current_optimized_position = None
 
         if self.is_current_position_tabooed(position_type="raw"):
+            # 100000
             return tabooed_energy
 
-        if self.gap_umbrella is not None:
-            gap_umbrella_energy = self.gap_umbrella.calc_energy(
-                fragments_coords)
-            if gap_umbrella_energy > self.gap_umbrella.base_energy - 100.0:
-                return gap_umbrella_energy
+        # if self.gap_umbrella is not None:
+        #     gap_umbrella_energy = self.gap_umbrella.calc_energy(
+        #         fragments_coords)
+        #     if gap_umbrella_energy > self.gap_umbrella.base_energy - 100.0:
+        #         # 70000
+        #         print('gap_umbrella')
+        #         return gap_umbrella_energy
 
-        sqm_umbrella_energy = self.sqm_umbrella.calc_energy(fragments_coords)
-        if sqm_umbrella_energy > self.sqm_umbrella.base_energy - 100.0:
-            return sqm_umbrella_energy
+        # sqm_umbrella_energy = self.sqm_umbrella.calc_energy(fragments_coords)
+        # if sqm_umbrella_energy > self.sqm_umbrella.base_energy - 100.0:
+        #     print('sqm_umbrella')
+        #     return sqm_umbrella_energy
 
-        if self.force_ordered_fragment:
-            energy = self.layout_order.calc_energy(fragments_coords)
-            if energy > self.layout_order.base_energy - 100.0:
-                return energy
+        # if self.force_ordered_fragment:
+        #     energy = self.layout_order.calc_energy(fragments_coords)
+        #     if energy > self.layout_order.base_energy - 100.0:
+        #         print('force_ordered_fragment')
+        #         return energy
 
-        energy = self.lower_sphere.calc_energy(fragments_coords)
-        if energy > self.lower_sphere.base_energy - 100.0:
-            return energy
+        # energy = self.lower_sphere.calc_energy(fragments_coords)
+        # if energy > self.lower_sphere.base_energy - 100.0:
+        #     print('lower_sphere')
+        #     return energy
 
-        if not self.contact_detector.is_contact(fragments_coords):
-            energy = self.gravitation.calc_energy(fragments_coords)
-            if energy > self.gravitation.base_energy - 100.0:
-                self.build_or_extend_gap_umbrella(
-                    current_gap=energy - self.gravitation.base_energy,
-                    fragments_coords=fragments_coords)
-                return energy
+        # if not self.contact_detector.is_contact(fragments_coords):
+        #     energy = self.gravitation.calc_energy(fragments_coords)
+        #     if energy > self.gravitation.base_energy - 100.0:
+        #         self.build_or_extend_gap_umbrella(
+        #             current_gap=energy - self.gravitation.base_energy,
+        #             fragments_coords=fragments_coords)
+        #         print('gravitation')
+        #         return energy
 
         memorized_energy = self.query_memory_positions(fragments_coords)
         if memorized_energy is not None:
             energy = memorized_energy
+        elif self.contact_detector.is_contact(fragments_coords):
+            print('Contact!')
+            self.taboo_current_position(raw_position_only=True)
+            return 1e5
         else:
             mol = self._get_super_molecule(fragments_coords)
+            # energy, final_mol = self.run_mopac(mol)
             try:
-                # energy, final_mol = self.run_mopac(mol)
+                # energy = self.run_xtb(mol)
                 energy, final_mol = self.run_xtb(mol)
-            except:
-                return tabooed_energy
+                final_mol = BabelMolAdaptor(final_mol)._obmol
+            except ValueError as e:
+                print(e)
+                self.taboo_current_position(raw_position_only=True)
+                return 1e5
+
+            if energy < self.global_best_energy:
+                print(f'New global best energy {energy} found')
+                self.global_best_energy = energy
+                # shutil.copy("xtbopt.xyz", os.path.join(cur_dir, "best_mol.xyz"))
+
             from rubicon.utils.ion_arranger.ion_arranger import IonPlacer
             final_coords = IonPlacer.normalize_molecule(final_mol)
             self.current_optimized_position = final_coords
             if self.is_current_position_tabooed(position_type="optimized"):
                 self.taboo_current_position(raw_position_only=True)
+                print("Position is tabooed. Aborting.")
                 return tabooed_energy
-            energy = round(energy, 3)
-            if self.is_optimized_position_inside_the_best_promixity(
-                    final_coords):
-                if energy < self.best_energy or self.current_best_optimized_position is None:
-                    self.best_energy = energy
-                    self.current_best_optimized_position = final_coords
-                    self.current_best_raw_position = list(
-                        itertools.chain(*fragments_coords))
-                    if len(
-                            self.sqm_umbrella_centers) == 0 and self.arranger is not None:
-                        self.arranger.clean_swarm_memory()
-                        self.gap_umbrella = None
-                        self.gap_umbrella_centers = []
-                    self.sqm_umbrella_centers.append(
-                        self.current_best_raw_position)
-                    self.best_mol = final_mol
-                    self.best_run_number = self.run_number
+            # energy = round(energy, 5)
+            # if self.is_optimized_position_inside_the_best_promixity(
+                    # final_coords):
+                # print('position is inside proxmity')
+            if self.best_energy is None or energy < self.best_energy or self.current_best_optimized_position is None:
+                self.best_energy = energy
+                # print(f'New best energy {energy} assigned')
+                self.current_best_optimized_position = final_coords
+                self.current_best_raw_position = list(
+                    itertools.chain(*fragments_coords))
+                # if len(
+                #         self.sqm_umbrella_centers) == 0 and self.arranger is not None:
+                #     self.arranger.clean_swarm_memory()
+                #     self.gap_umbrella = None
+                #     self.gap_umbrella_centers = []
+                # self.sqm_umbrella_centers.append(
+                #     self.current_best_raw_position)
+                self.best_mol = final_mol
+                self.best_run_number = self.run_number
             else:
                 energy = tabooed_energy
             self.append_position_to_memory(fragments_coords, energy)
@@ -298,8 +331,6 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         return energy
 
     def run_xtb(self, mol):
-        cur_dir = os.getcwd()
-        energy = 0.0
         xtb_bin = "xtb"
         if not shutil.which(xtb_bin):
             raise RuntimeError(
@@ -308,6 +339,7 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
                 "'conda install -c conda-forge xtb' ")
 
         with tempfile.TemporaryDirectory() as scratch_dir:
+            energy = 0
             self.run_number += 1
             # write the molecule structure
             fname = os.path.join(scratch_dir, "xtb_in.xyz")
@@ -315,7 +347,13 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
             # find number of unpaired electrons
             n_unpaired = mol.spin_multiplicity - 1
 
-            args = [xtb_bin, fname, f"--charge {self.total_charge}", f"--uhf {n_unpaired}"]
+            args = [xtb_bin,
+                    fname,
+                    f"--charge {self.total_charge}",
+                    f"--uhf {n_unpaired}",
+                    # "--opt verytight",
+                    "--strict" # fine for single point, not advised for geo opts
+                    ]
             if self.solvent is not None:
                 args.append(f"--alpb {self.solvent}")
 
@@ -324,19 +362,20 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
                     if isinstance(line, bytes):
                         line = line.decode()
 
-                    # the real code does filtering here
                     match = re.search("TOTAL ENERGY *(\\D\\d*\\.\\d*)", line)
+
                     if match:
                         # xtb output is given in Hartree (Eh).
                         energy = float(match.group(1))
-            final_pmg_mol = Molecule.from_file("xtbopt.xyz")
+
+                if p.returncode != 0:
+                    raise ValueError("abnormal termination of xtb")
+
+            final_pmg_mol = Molecule.from_file(os.path.join(scratch_dir, "xtb_in.xyz"))
             final_ob_mol = BabelMolAdaptor(final_pmg_mol)._obmol
 
-            if energy < self.global_best_energy:
-                self.global_best_energy = energy
-                shutil.copy("xtbopt.xyz", os.path.join(cur_dir, "best_mol.xyz"))
-
         return energy, final_ob_mol
+        # return energy
 
     def run_mopac(self, mol):
         cur_dir = os.getcwd()
@@ -373,6 +412,10 @@ class SemiEmpricalQuatumMechanicalEnergyEvaluator(EnergyEvaluator):
         return energy, final_ob_mol
 
     def _get_super_molecule(self, fragments_coords):
+        """
+        Returns a Molecule comprising both the input molecule
+        and all fragments, placed at certain coords
+        """
         super_mol_species = []
         super_mol_coords_au = []
         super_mol_species.extend(copy.deepcopy(self.mol_species))

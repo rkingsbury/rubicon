@@ -41,7 +41,6 @@ session = requests.Session()
 
 
 def get_nih_names(smiles):
-    # noinspection PyBroadException
     try:
         smi = re.sub("#", "%23", smiles)
         response = session.get(

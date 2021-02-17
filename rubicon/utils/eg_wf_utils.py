@@ -73,7 +73,6 @@ def move_to_eg_garden(m_dir):
     dest_dir = os.path.join(garden_part, grandpa_dir, parent_dir)
     dest_parent_dir = os.path.join(garden_part, grandpa_dir)
     if not os.path.exists(dest_parent_dir):
-        # noinspection PyBroadException
         try:
             os.makedirs(dest_parent_dir)
         except:

@@ -90,15 +90,18 @@ class IonPlacer:
     def fitness_observer(self, population, num_generations, num_evaluations,
                          args):
         current_fitness = [p.fitness for p in population]
-        short_current_fitness = [round(x, 2) for x in current_fitness]
-        print("BEST FITNESS", min(short_current_fitness))
-        print("CURRENT FITNESS", short_current_fitness)
+        short_current_fitness = [round(x, 4) for x in current_fitness]
+        print("BEST FITNESS THIS GENERATION", min(short_current_fitness))
+        print("CURRENT FITNESS THIS GENERATION", short_current_fitness)
         archived_fitness = [p.fitness for p in self.ea.archive]
-        short_archived_fitness = [round(x, 2) for x in archived_fitness]
-        print("ARCHIVED FITNESS", short_archived_fitness)
+        short_archived_fitness = [round(x, 4) for x in archived_fitness]
+        # print("ARCHIVED FITNESS", short_archived_fitness)
 
     @classmethod
     def get_max_radius(cls, mol_coords, fragments, nums_fragments):
+        """
+        Returns the largest RMSD coordinate of the molecule or fragments
+        """
         mol_radius = max([math.sqrt(sum([x ** 2 for x in c]))
                           for c in mol_coords])
         max_radius = mol_radius
@@ -112,6 +115,14 @@ class IonPlacer:
 
     @classmethod
     def get_equivalent_radius(cls, mol_coords, fragments, nums_fragments):
+        """
+        Calculates the radius of a sphere with the same volume
+        as the total volume of the Molecule and all fragments, 
+        in atomic units.
+
+        The radius of each Molecule and fragment is increased
+        by "extra_atom_radius" of 1.5
+        """
         extra_atom_radius = 1.5
         total_volume = 0.0
         mol_radius = max([math.sqrt(sum([x ** 2 for x in c]))
@@ -132,6 +143,9 @@ class IonPlacer:
 
     @classmethod
     def get_bounder(cls, mol_coords, fragments, nums_fragments, bound_setter):
+        """
+        Determine the dimensions of the bounding box for the solution
+        """
         lower_bound = []
         upper_bound = []
         if bound_setter == "chain":
@@ -187,6 +201,10 @@ class IonPlacer:
 
     @staticmethod
     def get_mol_coords(mol):
+        """
+        Returns a list of [x,y,z] for each atom in a Molecule
+        in atomic units
+        """
         coords = []
         num_atoms = mol.NumAtoms()
         for i in range(1, num_atoms + 1):
@@ -198,6 +216,9 @@ class IonPlacer:
 
     @staticmethod
     def get_mol_species(mol):
+        """
+        Returns a list of element symbols in a Molecule
+        """
         species = []
         num_atoms = mol.NumAtoms()
         # element_table = ob.OBElementTable()
@@ -211,6 +232,10 @@ class IonPlacer:
 
     @staticmethod
     def rotate(mol, theta, phi):
+        """
+        Rotates a molecule by angles theta and phi (radians)
+        using OpenBabel Rotate method
+        """
         m_theta = np.array([[1.0, 0.0, 0.0],
                             [0.0, math.cos(theta), -math.sin(theta)],
                             [0.0, math.sin(theta), math.cos(theta)]])
@@ -223,6 +248,10 @@ class IonPlacer:
         return mol
 
     def decode_solution(self, x):
+        """
+        Given a solution x (which I think is a tuple of x,y,z, theta, phi),
+        turn it into a list of coordinates corresponding to each fragment
+        """
         fragments_coords = []
         fragments_atom_counts = [frag.NumAtoms() for frag in self.fragments]
         xi = 0
@@ -245,6 +274,10 @@ class IonPlacer:
         return fragments_coords
 
     def generate_conformers(self, random, args):
+        """
+        Returns a random position between lower and upper bound
+        (x,y,z,theta,phi)
+        """
         # generator
         lower_bound = copy.deepcopy(args['_ec'].bounder.lower_bound)
         upper_bound = copy.deepcopy(args['_ec'].bounder.upper_bound)
@@ -312,7 +345,6 @@ class IonPlacer:
         else:
             return False
 
-    # noinspection PyUnusedLocal
     def evaluate_conformers(self, candidates, args):
         # evaluator
         fitness = []
@@ -322,6 +354,7 @@ class IonPlacer:
             energy = self.energy_evaluator.calc_energy(fragments_coords)
             fitness.append(energy)
             all_coords.append(fragments_coords)
+        coords_fitness = list(zip(all_coords, fitness))
 
         if self.reevaluate_fitness:
             self.reevaluate_fitness = False
@@ -458,47 +491,60 @@ def main():
     parser.add_argument("-e", "--evaluator", dest="evaluator", type=str,
                         default="hardsphere",
                         choices=["hardsphere", "sqm"], help="Energy Evaluator")
+    parser.add_argument("--solvent", dest="solvent", type=str,
+                        default=None,
+                        choices=["H2O"], help="Solvent for ALPB model")
     options = parser.parse_args()
+
+    molecule = BabelMolAdaptor.from_file(options.molecule,
+                                            os.path.splitext(
+                                                options.molecule)[1][
+                                            1:])._obmol
+    fragments = []
+    for frag_file in options.fragments:
+        file_format = os.path.splitext(frag_file)[1][1:]
+        fragments.append(
+            BabelMolAdaptor.from_file(frag_file, file_format)._obmol)
+
     if options.evaluator == 'hardsphere':
-        qcout_molecule = QCOutput(options.molecule)
-        qcout_cation = QCOutput(options.cation)
-        qcout_anion = QCOutput(options.anion)
-        total_charge_cation = qcout_cation.data[0]["molecules"][-1].charge
-        total_charge_anion = qcout_anion.data[0]["molecules"][-1].charge
-        total_charge_mol = qcout_molecule.data[0]["molecules"][-1].charge
-        num_lcm = lcm(total_charge_cation, -total_charge_anion)
-        num_cation = num_lcm / total_charge_cation
-        num_anion = num_lcm / -total_charge_anion
-        pymatgen_mol_molecule = qcout_molecule.data[0]["molecules"][-1]
-        pymatgen_mol_cation = qcout_cation.data[0]["molecules"][-1]
-        pymatgen_mol_anion = qcout_anion.data[0]["molecules"][-1]
-        # noinspection PyProtectedMember
-        molecule = BabelMolAdaptor(pymatgen_mol_molecule)._obmol
-        # noinspection PyProtectedMember
-        obmol_cation = BabelMolAdaptor(pymatgen_mol_cation)._obmol
-        # noinspection PyProtectedMember
-        obmol_anion = BabelMolAdaptor(pymatgen_mol_anion)._obmol
-        energy_evaluator = HardSphereElectrostaticEnergyEvaluator.from_qchem_output(
-            qcout_molecule, qcout_cation, qcout_anion)
-        fragments = [obmol_cation, obmol_anion]
+        rad_util = AtomicRadiusUtils(covalent_radius_scale=2.0, metal_radius_scale=0.5)
+        mol_radius = rad_util.get_radius(molecule)
+        fragments_atom_radius = [rad_util.get_radius(frag) for frag in
+                                 fragments]
+        energy_evaluator = HardSphereEnergyEvaluator(
+            mol_coords, mol_radius, fragments_atom_radius, nums_fragments,
+            )
+
+
+        # qcout_molecule = QCOutput(options.molecule)
+        # qcout_cation = QCOutput(options.cation)
+        # qcout_anion = QCOutput(options.anion)
+        # total_charge_cation = qcout_cation.data[0]["molecules"][-1].charge
+        # total_charge_anion = qcout_anion.data[0]["molecules"][-1].charge
+        # total_charge_mol = qcout_molecule.data[0]["molecules"][-1].charge
+        # num_lcm = lcm(total_charge_cation, -total_charge_anion)
+        # num_cation = num_lcm / total_charge_cation
+        # num_anion = num_lcm / -total_charge_anion
+        # pymatgen_mol_molecule = qcout_molecule.data[0]["molecules"][-1]
+        # pymatgen_mol_cation = qcout_cation.data[0]["molecules"][-1]
+        # pymatgen_mol_anion = qcout_anion.data[0]["molecules"][-1]
+        #
+        # molecule = BabelMolAdaptor(pymatgen_mol_molecule)._obmol
+        #
+        # obmol_cation = BabelMolAdaptor(pymatgen_mol_cation)._obmol
+        #
+        # obmol_anion = BabelMolAdaptor(pymatgen_mol_anion)._obmol
+        # energy_evaluator = HardSphereElectrostaticEnergyEvaluator.from_qchem_output(
+        #     qcout_molecule, qcout_cation, qcout_anion)
+        # fragments = [obmol_cation, obmol_anion]
     else:
-        # noinspection PyProtectedMember
-        molecule = BabelMolAdaptor.from_file(options.molecule,
-                                             os.path.splitext(
-                                                 options.molecule)[1][
-                                             1:])._obmol
-        fragments = []
-        for frag_file in options.fragments:
-            file_format = os.path.splitext(frag_file)[1][1:]
-            # noinspection PyProtectedMember
-            fragments.append(
-                BabelMolAdaptor.from_file(frag_file, file_format)._obmol)
         energy_evaluator = SemiEmpricalQuatumMechanicalEnergyEvaluator(
             molecule, fragments, options.nums_fragments,
             total_charge=options.charge,
             taboo_tolerance_ang=options.taboo_tolerance,
             force_order_fragment=options.force_ordered_fragment,
-            bound_setter=options.bound_setter)
+            bound_setter=options.bound_setter,
+            solvent=options.solvent)
     if len(fragments) != len(options.nums_fragments):
         raise ValueError(
             "you must specify the duplicated count for every fragment")
@@ -520,6 +566,8 @@ def main():
                  neighborhood_size=options.num_neighbours)
     print('It took {:.1f} seconds to place the salt'.format(placer
                                                             .playing_time))
+    print(f'xtb was called {energy_evaluator.run_number} times.')
+    print(f'global best energy: {energy_evaluator.global_best_energy} Ha.')
 
 
 if __name__ == '__main__':

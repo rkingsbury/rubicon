@@ -45,7 +45,6 @@ class SubmissionProcessorEG:
                                         {'$set': {'state': 'WAITING'}})
         if job:
             submission_id = job['submission_id']
-            # noinspection PyBroadException
             try:
                 if 'snl_id' in job:
                     snl = EGStructureNL.from_dict(job)
@@ -90,7 +89,7 @@ class SubmissionProcessorEG:
                                            'REJECTED']}},
                 projection={'submission_id': 1}):
             submission_id = submission['submission_id']
-            # noinspection PyBroadException
+             PyBroadException
             try:
                 # get a wf with this submission id
                 fw_id = self.launchpad.get_wf_ids({'metadata.submission_id':

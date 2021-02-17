@@ -40,6 +40,10 @@ class AtomicRadiusUtils(object):
         self.metal_radius_scale = metal_radius_scale
 
     def get_radius(self, mol):
+        '''
+        Return a list of scaled radii for each atom in the Molecule,
+        in au.
+        '''
         radius = []
         ref_radius = CovalentRadius.radius
         num_atoms = mol.NumAtoms()
@@ -335,14 +339,10 @@ class ContactGapRMSDEnergyEvaluator(EnergyEvaluator):
 
     def calc_energy(self, fragments_coords):
         max_gap = 0.0
-        frag_index_1 = None
-        frag_index_2 = None
         mol_gaps = self._get_mol_gaps(fragments_coords)
         for g, i1, i2 in mol_gaps:
             if g > max_gap:
                 max_gap = g
-                frag_index_1 = i1
-                frag_index_2 = i2
         rmsd_gaps = math.sqrt(
             sum([g ** 2 for g, i1, i2 in mol_gaps]) / len(mol_gaps))
         if max_gap < 0.1:

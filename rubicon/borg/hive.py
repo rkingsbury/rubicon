@@ -187,14 +187,12 @@ class DeltaSCFQChemToDbTaskDrone(AbstractDrone):
         stationary_type = None
         has_structure_changing_job = False
         for d in data:
-            # noinspection PyTypeChecker
             if d["jobtype"] == "opt":
                 data_dict["geom_opt"] = d
                 has_structure_changing_job = True
             elif d["jobtype"] == "freq":
                 data_dict["freq"] = d
                 has_structure_changing_job = True
-                # noinspection PyTypeChecker
                 if not d["has_error"]:
                     if d['frequencies'][0]["frequency"] < -0.00:
                         # it is stupied that -0.00 is less than 0.00
@@ -204,7 +202,6 @@ class DeltaSCFQChemToDbTaskDrone(AbstractDrone):
                 else:
                     stationary_type = "unknown"
             elif d["jobtype"] == "sp":
-                # noinspection PyTypeChecker
                 suffix = "" if d["solvent_method"] == "NA" \
                     else "_" + d["solvent_method"]
                 data_dict["scf" + suffix] = d
